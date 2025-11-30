@@ -1,0 +1,8 @@
+{
+  "scorers": [
+    {
+      "type": "response_match_score",
+      "threshold": 0.7
+    }
+  ]
+}

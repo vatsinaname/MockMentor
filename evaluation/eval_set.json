@@ -1,0 +1,12 @@
+[
+  {
+    "input": "Research the Model Context Protocol (MCP) and write a brief introduction.",
+    "expected_output_contains": ["Model Context Protocol", "MCP", "standard", "connect"],
+    "ideal_output": "The Model Context Protocol (MCP) is an open standard that enables AI models to securely connect to external data and tools..."
+  },
+  {
+    "input": "How do I use Python's asyncio library? Give a simple example.",
+    "expected_output_contains": ["asyncio", "await", "async def", "loop"],
+    "ideal_output": "Python's asyncio library is used for writing concurrent code using the async/await syntax..."
+  }
+]
