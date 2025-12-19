@@ -1,47 +1,51 @@
-# InsightArchitect: Multi-Agent Technical Research Assistant
+# MockMentor: The Data Engineering Interview Coach That Remembers You
 
-**InsightArchitect** is a multi-agent system built with the Google Agent Development Kit (ADK). It orchestrates specialized agents to research technical topics and generate comprehensive, well-structured documentation.
+![MockMentor](https://cdn-icons-png.flaticon.com/512/4712/4712035.png)
 
-## Capabilities Demonstrated
+**Mock interview tools have no memory. Every session starts from zero.**  
+MockMentor solves this. It's an agentic AI coach that tracks your weak areas, adapts to your skill level, and helps you systematically close gaps.
 
-1.  **Multi-Agent Systems**: Uses a `Coordinator` agent to manage a `Researcher` (for information gathering) and a `Writer` (for content synthesis).
-2.  **Tools**: Implements custom tools for web search and content extraction.
-3.  **Memory**: Maintains session context to refine outputs based on user interaction.
+## Features
+
+- Persistent Memory: Remembers your struggle with Window Functions from last week.
+- Adaptive Questioning: Selects questions weighted toward your weak areas.
+- Detailed Rubrics: Scores every answer on Accuracy, Completeness, and Clarity.
+- Futuristic UI: A stunning Interface built with Streamlit.
 
 ## Architecture
 
-```mermaid
-graph TD
-    User[User] --> Coordinator[Coordinator Agent]
-    Coordinator -->|Delegates Research| Researcher[Researcher Agent]
-    Coordinator -->|Delegates Writing| Writer[Writer Agent]
-    Researcher -->|Uses| SearchTool[Search Tool]
-    Researcher -->|Uses| ReadTool[Read URL Tool]
-    Writer -->|Produces| Doc[Documentation]
-```
+MockMentor uses the Google ADK (Agent Development Kit) and Gemini 2.0 Flash.
+
+- Agent: Orchestrates the interview flow.
+- Tools: `select_question`, `evaluate_response` (grading), `weakness_tracker`.
+- Memory: JSON-based persistent session storage (`mockmentor_db.json`).
 
 ## Quick Start
 
-1.  **Install Dependencies**:
+1. Install Dependencies
 
-    ```bash
-    pip install -r requirements.txt
-    ```
+   ```shell
+   pip install -r requirements.txt
+   ```
 
-2.  **Setup Environment**:
-    Copy `.env.example` to `.env` and add your `GOOGLE_API_KEY`.
+2. Set API Key
+   Make sure your environment has `GOOGLE_API_KEY` set (or configure `google-adk`).
 
-    ```bash
-    cp .env.example .env
-    ```
+3. Run the App
+   ```shell
+   streamlit run ui/app.py
+   ```
 
-3.  **Run the Agent**:
-    ```bash
-    adk run my_agent
-    ```
+## Project Structure
 
-## Directory Structure
+- `mockmentor/`: Core agent logic.
+  - `questions.py`: Question bank.
+  - `rubrics.py`: Grading criteria.
+  - `tools.py`: Tool implementations.
+  - `agent.py`: Agent configuration.
+- `ui/`: Streamlit frontend.
+  - `app.py`: Main application entry point.
 
-- `my_agent/`: Contains the agent logic.
-- `tools/`: Custom tool implementations.
-- `evaluation/`: Evaluation datasets and configs.
+## Demo
+
+Open the app and say "I want to practice SQL". The agent will guide you from there.
