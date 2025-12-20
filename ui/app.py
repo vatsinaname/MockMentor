@@ -236,42 +236,118 @@ history = profile.get("history", [])
 with st.sidebar:
     st.markdown('<p class="brand">MockMentor</p>', unsafe_allow_html=True)
     
-    st.markdown('<p class="section-header">Statistics</p>', unsafe_allow_html=True)
+    # Tabbed navigation
+    tab1, tab2 = st.tabs(["Practice", "Analytics"])
     
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Sessions", len(history))
-    with col2:
-        if history:
-            avg = sum(h["score"] for h in history)/len(history)
-            st.metric("Avg Score", f"{avg:.0f}%")
-        else:
-            st.metric("Avg Score", "-")
+    # ===== PRACTICE TAB =====
+    with tab1:
+        st.markdown('<p class="section-header">Quick Start</p>', unsafe_allow_html=True)
+        
+        # Quick action buttons
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Continue", use_container_width=True, help="Resume with optimal question"):
+                st.session_state.practice_mode = "balanced"
+                st.session_state.start_practice = True
+        with col2:
+            if st.button("Review", use_container_width=True, help="Questions due for review"):
+                st.session_state.practice_mode = "review"
+                st.session_state.start_practice = True
+        
+        col3, col4 = st.columns(2)
+        with col3:
+            if st.button("Focus", use_container_width=True, help="Target weak areas"):
+                st.session_state.practice_mode = "focus"
+                st.session_state.start_practice = True
+        with col4:
+            if st.button("Explore", use_container_width=True, help="Try new questions"):
+                st.session_state.practice_mode = "explore"
+                st.session_state.start_practice = True
+        
+        st.markdown('<p class="section-header">Topics</p>', unsafe_allow_html=True)
+        
+        # Topic buttons in a compact grid
+        topics = [
+            ("SQL", "sql"), ("Pipelines", "pipelines"), 
+            ("Modeling", "modeling"), ("System Design", "system_design"),
+            ("Debugging", "debugging"), ("Cloud", "cloud"),
+            ("Python", "python"), ("Data Quality", "data_quality")
+        ]
+        
+        for i in range(0, len(topics), 2):
+            cols = st.columns(2)
+            for j, col in enumerate(cols):
+                if i + j < len(topics):
+                    name, topic_id = topics[i + j]
+                    with col:
+                        if st.button(name, key=f"topic_{topic_id}", use_container_width=True):
+                            st.session_state.selected_topic = topic_id
+                            st.session_state.start_practice = True
+        
+        st.markdown('<p class="section-header">Session</p>', unsafe_allow_html=True)
+        
+        if st.button("Reset Chat", use_container_width=True):
+            st.session_state.messages = []
+            st.session_state.messages.append({
+                "role": "assistant", 
+                "content": "Session cleared. Select a topic or practice mode to begin."
+            })
+            st.rerun()
     
-    st.markdown('<p class="section-header">Topic Confidence</p>', unsafe_allow_html=True)
-    
-    if weak_areas:
-        for topic, score in sorted(weak_areas.items(), key=lambda x: x[1]):
-            pct = int(score * 100)
-            score_class = "low" if pct < 50 else "mid" if pct < 80 else "high"
-            st.markdown(f'''
-                <div class="topic-row">
-                    <span class="topic-name">{topic.replace("_", " ").title()}</span>
-                    <span class="topic-score {score_class}">{pct}%</span>
-                </div>
-            ''', unsafe_allow_html=True)
-    else:
-        st.markdown('<p style="color: #52525b; font-size: 13px;">No practice data yet</p>', unsafe_allow_html=True)
-    
-    st.markdown('<p class="section-header">Actions</p>', unsafe_allow_html=True)
-    
-    if st.button("Reset Session", use_container_width=True):
-        st.session_state.messages = []
-        st.session_state.messages.append({
-            "role": "assistant", 
-            "content": "Session cleared. Select a topic to begin:\n\n- SQL\n- Pipelines\n- Modeling\n- System Design\n- Debugging\n- Cloud\n- Python\n- Data Quality"
-        })
-        st.rerun()
+    # ===== ANALYTICS TAB =====
+    with tab2:
+        try:
+            from mockmentor.tools import get_analytics
+            analytics = get_analytics()
+            
+            st.markdown('<p class="section-header">Overview</p>', unsafe_allow_html=True)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Answered", analytics["total_questions_answered"])
+            with col2:
+                due = analytics["due_for_review"]
+                st.metric("Due for Review", due)
+            
+            st.markdown('<p class="section-header">Topic Mastery</p>', unsafe_allow_html=True)
+            
+            topic_mastery = analytics.get("topic_mastery", {})
+            if topic_mastery:
+                # Sort by mastery percentage
+                sorted_topics = sorted(
+                    topic_mastery.items(), 
+                    key=lambda x: x[1].get("mastery_percentage", 0)
+                )
+                for topic, stats in sorted_topics:
+                    mastery_pct = stats.get("mastery_percentage", 0)
+                    mastered = stats.get("mastered_count", 0)
+                    total = stats.get("total_questions", 0)
+                    
+                    score_class = "low" if mastery_pct < 40 else "mid" if mastery_pct < 70 else "high"
+                    st.markdown(f'''
+                        <div class="topic-row">
+                            <span class="topic-name">{topic.replace("_", " ").title()}</span>
+                            <span class="topic-score {score_class}">{mastered}/{total}</span>
+                        </div>
+                    ''', unsafe_allow_html=True)
+            else:
+                st.markdown('<p style="color: #52525b; font-size: 13px;">No practice data yet</p>', unsafe_allow_html=True)
+            
+            # Recommendations
+            recs = analytics.get("recommendations", {})
+            if recs.get("recommended_mode"):
+                st.markdown('<p class="section-header">Recommendation</p>', unsafe_allow_html=True)
+                mode = recs["recommended_mode"]
+                if mode == "review":
+                    st.info(f"You have {recs['due_count']} questions due for review")
+                elif mode == "focus":
+                    topic = recs.get("suggested_topic", "").replace("_", " ").title()
+                    st.info(f"Focus on: {topic}")
+                else:
+                    st.info("Explore new topics to expand coverage")
+                    
+        except Exception as e:
+            st.markdown('<p style="color: #52525b; font-size: 13px;">Analytics loading...</p>', unsafe_allow_html=True)
 
 # --- Async Helper ---
 async def run_agent_with_session(runner, user_id, session_id, message_content):
@@ -316,18 +392,58 @@ async def run_agent_with_session(runner, user_id, session_id, message_content):
     return response_text
 
 # --- Chat Logic ---
+
+# Initialize messages if not present
 if "messages" not in st.session_state:
     st.session_state.messages = []
     st.session_state.messages.append({
         "role": "assistant", 
-        "content": "Welcome. I will help you prepare for Data Engineering interviews with realistic questions and detailed feedback.\n\nSelect a topic to begin:\n\n- **SQL** — Window functions, query optimization, joins\n- **Pipelines** — ETL design, streaming, orchestration\n- **Modeling** — Star schema, dimensional modeling, SCDs\n- **System Design** — Data platform architecture\n- **Debugging** — Spark troubleshooting, performance issues\n- **Cloud** — AWS/GCP/Azure, infrastructure, cost optimization\n- **Python** — Generators, decorators, data processing libraries\n- **Data Quality** — Validation, observability, contracts"
+        "content": "Welcome. I will help you prepare for Data Engineering interviews with realistic questions and detailed feedback.\n\nUse the **Practice** tab to:\n- **Continue** — Resume with an optimally-selected question\n- **Review** — Practice questions due for spaced repetition\n- **Focus** — Target your weakest areas\n- **Explore** — Try new questions\n\nOr select a specific topic to dive deep."
     })
 
+# Handle practice mode button clicks - set pending prompt
+if st.session_state.get("start_practice"):
+    from mockmentor.tools import select_smart_question
+    
+    mode = st.session_state.get("practice_mode", "balanced")
+    topic = st.session_state.get("selected_topic")
+    
+    # Select question using learning engine
+    question = select_smart_question(mode=mode, topic=topic)
+    
+    if "error" in question:
+        pending = f"I want to practice {topic if topic else 'any topic'}"
+    else:
+        # Format the question for the agent
+        topic_name = question.get("topic", "").replace("_", " ").title()
+        difficulty = question.get("difficulty", "medium").title()
+        pending = f"Give me a {difficulty.lower()} {topic_name} question"
+    
+    # Set pending prompt and clear flags
+    st.session_state.pending_prompt = pending
+    st.session_state.start_practice = False
+    st.session_state.practice_mode = None
+    st.session_state.selected_topic = None
+
+# Display existing messages
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-if prompt := st.chat_input("Enter your response"):
+# Get prompt: either from chat input OR from pending button action
+# IMPORTANT: st.chat_input must always be rendered for the input box to appear
+user_input = st.chat_input("Enter your response")
+
+# Check for pending prompt from button click
+pending = st.session_state.get("pending_prompt")
+if pending:
+    st.session_state.pending_prompt = None
+
+# Use pending prompt if available, otherwise use user input
+prompt = pending or user_input
+
+# Process the prompt if we have one
+if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -366,3 +482,4 @@ if prompt := st.chat_input("Enter your response"):
                     st.error("Rate limit exceeded. Please wait and retry.")
                 else:
                     st.error(f"Error: {e}")
+
