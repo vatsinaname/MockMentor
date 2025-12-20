@@ -2,6 +2,26 @@ import streamlit as st
 import sys
 import os
 
+# Load environment variables from .env file (local dev)
+from dotenv import load_dotenv
+load_dotenv()
+
+# Load Streamlit Cloud secrets into environment (for cloud deployment)
+try:
+    if hasattr(st, 'secrets'):
+        for key in ['MODEL_PROVIDER', 'MODEL_NAME', 'GROQ_API_KEY', 'GOOGLE_API_KEY']:
+            if key in st.secrets:
+                os.environ[key] = st.secrets[key]
+except Exception:
+    # No secrets.toml found - this is fine for local dev (uses .env instead)
+    pass
+
+# Apply nest_asyncio to allow nested event loops
+import nest_asyncio
+nest_asyncio.apply()
+
+import asyncio
+
 # Add parent directory to path so we can import mockmentor
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -10,149 +30,339 @@ from mockmentor.tools import get_profile
 
 # --- Page Config ---
 st.set_page_config(
-    page_title="MockMentor AI",
-    page_icon="🤖",
+    page_title="MockMentor",
+    page_icon="M",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS for "Futuristic/Google" Feel ---
+# --- Minimal Professional CSS ---
 st.markdown("""
 <style>
-    /* Google Fonts */
-    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
     
-    html, body, [class*="css"] {
-        font-family: 'Outfit', sans-serif;
+    * {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
     
-    /* Neon Glows & Gradients */
     .stApp {
-        background: radial-gradient(circle at 10% 20%, #111625 0%, #0A0E17 90%);
-        color: white;
+        background: #09090b;
     }
     
-    /* Chat Message Bubbles */
-    .stChatMessage {
-        border-radius: 12px;
-        padding: 10px;
-        margin-bottom: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3); 
-    }
-    .stChatMessage[data-testid="stChatMessage"]:nth-child(odd) {
-        background-color: rgba(0, 229, 255, 0.05); /* Cyan tint user */
-        border: 1px solid rgba(0, 229, 255, 0.2);
-    }
+    #MainMenu, footer {visibility: hidden;}
     
-    /* Sidebar styling */
     section[data-testid="stSidebar"] {
-        background-color: #0E121B;
-        border-right: 1px solid #1F2937;
+        background: #09090b;
+        border-right: 1px solid #27272a;
     }
     
-    /* Headers */
-    h1, h2, h3 {
-        background: linear-gradient(90deg, #FFFFFF, #00E5FF);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+    h1, h2, h3, h4, h5, h6 {
+        color: #fafafa !important;
+        font-weight: 500 !important;
+        background: none !important;
+        -webkit-text-fill-color: #fafafa !important;
     }
     
-    /* Metrics */
+    p, span, div {
+        color: #a1a1aa;
+    }
+    
+    .stChatMessage {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+    
+    [data-testid="stChatMessage"] {
+        padding: 16px 0;
+        border-bottom: 1px solid #18181b;
+    }
+    
+    .stChatInput > div {
+        background: #18181b !important;
+        border: 1px solid #27272a !important;
+        border-radius: 6px;
+    }
+    
+    .stChatInput textarea {
+        color: #fafafa !important;
+    }
+    
+    .stChatInput textarea::placeholder {
+        color: #52525b !important;
+    }
+    
     div[data-testid="metric-container"] {
-        background-color: #171C28;
-        padding: 15px;
-        border-radius: 8px;
-        border: 1px solid #2D3748;
+        background: #18181b;
+        border: 1px solid #27272a;
+        border-radius: 6px;
+        padding: 16px;
+    }
+    
+    div[data-testid="metric-container"] label {
+        color: #71717a !important;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    div[data-testid="metric-container"] [data-testid="stMetricValue"] {
+        color: #fafafa !important;
+        font-weight: 500;
+    }
+    
+    .stProgress > div > div {
+        background: #3b82f6 !important;
+    }
+    
+    .stButton > button {
+        background: #18181b;
+        color: #a1a1aa;
+        border: 1px solid #27272a;
+        border-radius: 6px;
+        font-weight: 500;
+        font-size: 13px;
+    }
+    
+    .stButton > button:hover {
+        background: #27272a;
+        border-color: #3f3f46;
+        color: #fafafa;
+    }
+    
+    .stAlert {
+        background: #18181b;
+        border: 1px solid #27272a;
+        border-radius: 6px;
+        color: #a1a1aa;
+    }
+    
+    code {
+        background: #18181b;
+        padding: 2px 6px;
+        border-radius: 4px;
+        color: #60a5fa;
+        font-size: 13px;
+    }
+    
+    .stat-card {
+        background: #18181b;
+        border: 1px solid #27272a;
+        border-radius: 6px;
+        padding: 16px;
+        margin-bottom: 12px;
+    }
+    
+    .stat-label {
+        color: #71717a;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+    }
+    
+    .stat-value {
+        color: #fafafa;
+        font-size: 24px;
+        font-weight: 500;
+    }
+    
+    .topic-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 12px;
+        background: #18181b;
+        border: 1px solid #27272a;
+        border-radius: 6px;
+        margin-bottom: 8px;
+    }
+    
+    .topic-name {
+        color: #fafafa;
+        font-size: 13px;
+        font-weight: 500;
+    }
+    
+    .topic-score {
+        color: #71717a;
+        font-size: 12px;
+    }
+    
+    .topic-score.low { color: #ef4444; }
+    .topic-score.mid { color: #f59e0b; }
+    .topic-score.high { color: #22c55e; }
+    
+    .section-header {
+        color: #52525b;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin: 20px 0 12px 0;
+        font-weight: 600;
+    }
+    
+    .brand {
+        color: #fafafa;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.5px;
+        margin-bottom: 4px;
+    }
+    
+    .tagline {
+        color: #52525b;
+        font-size: 13px;
+    }
+    
+    hr {
+        border: none;
+        border-top: 1px solid #27272a;
+        margin: 20px 0;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # --- Header ---
-col1, col2 = st.columns([1, 5])
-with col1:
-    st.image("https://cdn-icons-png.flaticon.com/512/4712/4712035.png", width=60) # Placeholder robot icon
-with col2:
-    st.title("MockMentor")
-    st.caption("The Data Engineering Interview Coach That Remembers You.")
+st.markdown('<p class="brand">MockMentor</p>', unsafe_allow_html=True)
+st.markdown('<p class="tagline">Data Engineering Interview Practice</p>', unsafe_allow_html=True)
+st.markdown("<hr>", unsafe_allow_html=True)
 
-# --- Sidebar Stats ---
+# --- Sidebar ---
 profile = get_profile()
 weak_areas = profile.get("weak_areas", {})
 history = profile.get("history", [])
 
 with st.sidebar:
-    st.header("🧠 Your Profile")
+    st.markdown('<p class="brand">MockMentor</p>', unsafe_allow_html=True)
     
-    # KPIs
-    kpi1, kpi2 = st.columns(2)
-    kpi1.metric("Sessions", len(history))
-    if history:
-        avg = sum(h["score"] for h in history)/len(history)
-        kpi2.metric("Avg Score", f"{avg:.1f}")
-    else:
-        kpi2.metric("Avg Score", "-")
-
-    st.subheader("Need Focus On:")
+    st.markdown('<p class="section-header">Statistics</p>', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Sessions", len(history))
+    with col2:
+        if history:
+            avg = sum(h["score"] for h in history)/len(history)
+            st.metric("Avg Score", f"{avg:.0f}%")
+        else:
+            st.metric("Avg Score", "-")
+    
+    st.markdown('<p class="section-header">Topic Confidence</p>', unsafe_allow_html=True)
+    
     if weak_areas:
-        # Sort by weakness (lowest score first)
-        sorted_weak = sorted(weak_areas.items(), key=lambda x: x[1])
-        for topic, score in sorted_weak:
-            confidence = int(score * 100)
-            color = "red" if confidence < 50 else "yellow" if confidence < 80 else "green"
-            st.markdown(f"**{topic.upper()}**")
-            st.progress(score, text=f"Confidence: {confidence}%")
+        for topic, score in sorted(weak_areas.items(), key=lambda x: x[1]):
+            pct = int(score * 100)
+            score_class = "low" if pct < 50 else "mid" if pct < 80 else "high"
+            st.markdown(f'''
+                <div class="topic-row">
+                    <span class="topic-name">{topic.replace("_", " ").title()}</span>
+                    <span class="topic-score {score_class}">{pct}%</span>
+                </div>
+            ''', unsafe_allow_html=True)
     else:
-        st.info("No data yet. Start an interview!")
+        st.markdown('<p style="color: #52525b; font-size: 13px;">No practice data yet</p>', unsafe_allow_html=True)
+    
+    st.markdown('<p class="section-header">Actions</p>', unsafe_allow_html=True)
+    
+    if st.button("Reset Session", use_container_width=True):
+        st.session_state.messages = []
+        st.session_state.messages.append({
+            "role": "assistant", 
+            "content": "Session cleared. Select a topic to begin:\n\n- SQL\n- Pipelines\n- Modeling\n- System Design\n- Debugging\n- Cloud\n- Python\n- Data Quality"
+        })
+        st.rerun()
 
-    if st.button("Reset Session Memory", type="secondary"):
-        # Dangerous for persistent file, but okay for demo app loop
-        pass 
+# --- Async Helper ---
+async def run_agent_with_session(runner, user_id, session_id, message_content):
+    from google.genai.types import Content, Part
+    
+    app_name = runner.app_name
+    
+    session = None
+    try:
+        session = await runner.session_service.get_session(
+            app_name=app_name,
+            user_id=user_id, 
+            session_id=session_id
+        )
+    except Exception:
+        pass
+    
+    if session is None:
+        session = await runner.session_service.create_session(
+            app_name=app_name,
+            user_id=user_id, 
+            session_id=session_id
+        )
+    
+    msg_obj = Content(role="user", parts=[Part(text=message_content)])
+    
+    response_text = ""
+    async for event in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=msg_obj
+    ):
+        if hasattr(event, 'is_final_response') and event.is_final_response():
+            if hasattr(event, 'content') and event.content:
+                if hasattr(event.content, 'parts'):
+                    for part in event.content.parts:
+                        if hasattr(part, 'text') and part.text:
+                            response_text += part.text
+        elif hasattr(event, 'text') and event.text:
+            response_text = event.text
+    
+    return response_text
 
 # --- Chat Logic ---
-
 if "messages" not in st.session_state:
     st.session_state.messages = []
-    # Initial greeting from agent
-    st.session_state.messages.append({"role": "assistant", "content": mock_mentor_agent.intro})
+    st.session_state.messages.append({
+        "role": "assistant", 
+        "content": "Welcome. I will help you prepare for Data Engineering interviews with realistic questions and detailed feedback.\n\nSelect a topic to begin:\n\n- **SQL** — Window functions, query optimization, joins\n- **Pipelines** — ETL design, streaming, orchestration\n- **Modeling** — Star schema, dimensional modeling, SCDs\n- **System Design** — Data platform architecture\n- **Debugging** — Spark troubleshooting, performance issues\n- **Cloud** — AWS/GCP/Azure, infrastructure, cost optimization\n- **Python** — Generators, decorators, data processing libraries\n- **Data Quality** — Validation, observability, contracts"
+    })
 
-# Display Chat
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# Input
-if prompt := st.chat_input("Type your answer or ask a question..."):
+if prompt := st.chat_input("Enter your response"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Analyzing..."):
-            # Pass messages to agent (mimic conversation history)
-            # In ADK, we usually call agent.generate(prompt, history=...)
-            # Since ADK agents manage their own internal history if session_service is used,
-            # we can just pass the new prompt and let it handle context.
-            # *However*, our `tools.py` uses context injection.
-            
+        with st.spinner(""):
             try:
-                # ADK Agent 'generate' usage
-                # Note: ADK Agents usually take a `chat_history` list of dicts/messages
-                # We will just pass the raw prompt and let the agent do its thing.
-                # If we need history, we pass `previous_turn=...` or similar.
-                # Simplified for this demo:
+                if "runner" not in st.session_state:
+                    from google.adk.runners import InMemoryRunner
+                    st.session_state.runner = InMemoryRunner(
+                        agent=mock_mentor_agent,
+                        app_name="MockMentor"
+                    )
                 
-                response_obj = mock_mentor_agent.generate(prompt)
+                runner = st.session_state.runner
                 
-                # ADK returns an object. .text is the response.
-                response_text = response_obj.text 
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
                 
-                st.markdown(response_text)
-                st.session_state.messages.append({"role": "assistant", "content": response_text})
+                response_text = loop.run_until_complete(
+                    run_agent_with_session(runner, "user", "default", prompt)
+                )
                 
-                # Rerun to update sidebar stats immediately after evaluation
-                if "score" in response_text.lower() or "evaluated" in response_text.lower():
-                    st.rerun()
+                if response_text:
+                    st.markdown(response_text)
+                    st.session_state.messages.append({"role": "assistant", "content": response_text})
+                else:
+                    st.warning("No response received.")
                     
             except Exception as e:
-                st.error(f"Agent Error: {e}")
-
+                error_msg = str(e)
+                if "429" in error_msg or "EXHAUSTED" in error_msg:
+                    st.error("Rate limit exceeded. Please wait and retry.")
+                else:
+                    st.error(f"Error: {e}")

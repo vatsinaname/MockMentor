@@ -1,7 +1,22 @@
 import random
 import json
 import os
-from google.adk.model import Model
+
+
+def get_eval_model():
+    """Returns the appropriate model for evaluation based on environment config."""
+    provider = os.environ.get("MODEL_PROVIDER", "groq").lower()
+    
+    if provider == "gemini":
+        from google.adk.models import Gemini
+        model_name = os.environ.get("MODEL_NAME", "gemini-2.5-flash")
+        return Gemini(model=model_name)
+    else:
+        from google.adk.models import LiteLlm
+        model_name = os.environ.get("MODEL_NAME", "moonshotai/kimi-k2-instruct")
+        if not model_name.startswith("groq/"):
+            model_name = f"groq/{model_name}"
+        return LiteLlm(model=model_name)
 from .questions import QUESTIONS
 from .rubrics import RUBRICS
 
@@ -38,9 +53,31 @@ def _save_user_data(user_data):
 def select_question(topic: str = None, difficulty: str = None) -> dict:
     """
     Selects an appropriate interview question based on user's weak areas and history.
+    Topic options: sql, pipelines, modeling, system_design, debugging
     """
     user = _get_user_data()
     seen = set(user["questions_seen"])
+    
+    # Normalize topic name for matching
+    topic_map = {
+        "sql": "sql",
+        "pipelines": "pipelines",
+        "pipeline": "pipelines",
+        "data pipelines": "pipelines",
+        "modeling": "modeling",
+        "data modeling": "modeling",
+        "model": "modeling",
+        "system design": "system_design",
+        "system_design": "system_design",
+        "sys design": "system_design",
+        "sysdesign": "system_design",
+        "debugging": "debugging",
+        "debug": "debugging",
+    }
+    
+    if topic:
+        topic_lower = topic.lower().strip()
+        topic = topic_map.get(topic_lower, topic_lower)
     
     candidates = []
     for q_id, q in QUESTIONS.items():
@@ -48,11 +85,13 @@ def select_question(topic: str = None, difficulty: str = None) -> dict:
             continue
         if topic and q["topic"] != topic:
             continue
+        if difficulty and q.get("difficulty") != difficulty.lower():
+            continue
         candidates.append(q)
     
     if not candidates:
         if topic:
-             return {"error": f"No more questions available for topic: {topic}"}
+             return {"error": f"No more questions available for topic: {topic}. Available topics: sql, pipelines, modeling, system_design, debugging"}
         # If no new questions, maybe revisit old ones? For now, just reset pool or fallback
         candidates = list(QUESTIONS.values()) 
 
@@ -85,7 +124,7 @@ def evaluate_response(question_id: str, user_response: str) -> dict:
     question = QUESTIONS[question_id]
     rubric = RUBRICS["default"]
     
-    eval_model = Model(model_name="gemini-2.0-flash")
+    eval_model = get_eval_model()
     
     prompt = f"""
     You are an expert interviewer. Grade this answer.
