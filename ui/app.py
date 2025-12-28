@@ -1,32 +1,27 @@
+"""
+MockMentor V2 - Main App
+Multi-page Streamlit application with onboarding, match analysis, and interview modes
+"""
+
 import streamlit as st
 import sys
 import os
 
-# Load environment variables from .env file (local dev)
+# Load environment variables
 from dotenv import load_dotenv
 load_dotenv()
 
-# Load Streamlit Cloud secrets into environment (for cloud deployment)
+# Handle Streamlit Cloud secrets
 try:
     if hasattr(st, 'secrets'):
         for key in ['MODEL_PROVIDER', 'MODEL_NAME', 'GROQ_API_KEY', 'GOOGLE_API_KEY']:
             if key in st.secrets:
                 os.environ[key] = st.secrets[key]
 except Exception:
-    # No secrets.toml found - this is fine for local dev (uses .env instead)
     pass
 
-# Apply nest_asyncio to allow nested event loops
-import nest_asyncio
-nest_asyncio.apply()
-
-import asyncio
-
-# Add parent directory to path so we can import mockmentor
+# Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from mockmentor.agent import mock_mentor_agent
-from mockmentor.tools import get_profile
 
 # --- Page Config ---
 st.set_page_config(
@@ -36,450 +31,615 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Minimal Professional CSS ---
+# --- Professional Dark Theme CSS ---
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     
-    * {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    }
+    * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
     
-    .stApp {
-        background: #09090b;
-    }
+    .stApp { background: #0a0a0a; }
     
-    #MainMenu, footer {visibility: hidden;}
+    #MainMenu, footer { visibility: hidden; }
     
+    /* Sidebar */
     section[data-testid="stSidebar"] {
-        background: #09090b;
-        border-right: 1px solid #27272a;
+        background: #0a0a0a;
+        border-right: 1px solid #1f1f23;
     }
     
+    section[data-testid="stSidebar"] .stButton > button {
+        background: #1f1f23 !important;
+        color: #e4e4e7 !important;
+        border: 1px solid #27272a !important;
+        font-weight: 500;
+    }
+    
+    section[data-testid="stSidebar"] .stButton > button:hover {
+        background: #27272a !important;
+        border-color: #3f3f46 !important;
+        transform: none;
+        box-shadow: none;
+    }
+    
+    /* Typography */
     h1, h2, h3, h4, h5, h6 {
         color: #fafafa !important;
-        font-weight: 500 !important;
-        background: none !important;
-        -webkit-text-fill-color: #fafafa !important;
+        font-weight: 600 !important;
     }
     
-    p, span, div {
-        color: #a1a1aa;
-    }
+    p, span, div { color: #a1a1aa; }
+    label { color: #d4d4d8 !important; }
     
-    .stChatMessage {
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-    }
-    
-    [data-testid="stChatMessage"] {
-        padding: 16px 0;
-        border-bottom: 1px solid #18181b;
-    }
-    
-    .stChatInput > div {
-        background: #18181b !important;
-        border: 1px solid #27272a !important;
-        border-radius: 6px;
-    }
-    
-    .stChatInput textarea {
-        color: #fafafa !important;
-    }
-    
-    .stChatInput textarea::placeholder {
-        color: #52525b !important;
-    }
-    
-    div[data-testid="metric-container"] {
-        background: #18181b;
-        border: 1px solid #27272a;
-        border-radius: 6px;
-        padding: 16px;
-    }
-    
-    div[data-testid="metric-container"] label {
-        color: #71717a !important;
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    
-    div[data-testid="metric-container"] [data-testid="stMetricValue"] {
-        color: #fafafa !important;
-        font-weight: 500;
-    }
-    
-    .stProgress > div > div {
-        background: #3b82f6 !important;
-    }
-    
+    /* All buttons - dark/subtle style (no gradients) */
     .stButton > button {
-        background: #18181b;
-        color: #a1a1aa;
-        border: 1px solid #27272a;
-        border-radius: 6px;
+        background: #1f1f23 !important;
+        color: #e4e4e7 !important;
+        border: 1px solid #27272a !important;
+        border-radius: 8px;
         font-weight: 500;
-        font-size: 13px;
+        padding: 0.6rem 1.2rem;
+        transition: all 0.2s;
     }
     
     .stButton > button:hover {
+        background: #27272a !important;
+        border-color: #3f3f46 !important;
+    }
+    
+    /* Primary buttons - slightly brighter but still subtle */
+    .stButton > button[kind="primary"] {
+        background: #27272a !important;
+        color: #fafafa !important;
+        border: 1px solid #3f3f46 !important;
+    }
+    
+    .stButton > button[kind="primary"]:hover {
+        background: #3f3f46 !important;
+        border-color: #52525b !important;
+    }
+    
+    /* Text inputs */
+    .stTextArea textarea, .stTextInput input {
+        background: #18181b !important;
+        border: 1px solid #27272a !important;
+        color: #fafafa !important;
+        border-radius: 8px;
+    }
+    
+    .stTextArea textarea:focus, .stTextInput input:focus {
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2) !important;
+    }
+    
+    /* File uploader */
+    [data-testid="stFileUploader"] {
+        background: #18181b;
+        border: 1px solid #27272a;
+        border-radius: 12px;
+    }
+    
+    [data-testid="stFileUploader"] section {
+        padding: 1rem;
+    }
+    
+    [data-testid="stFileUploader"] button {
+        background: #27272a !important;
+        color: #e4e4e7 !important;
+        border: 1px solid #3f3f46 !important;
+    }
+    
+    /* Cards and containers */
+    .card {
+        background: #18181b;
+        border: 1px solid #27272a;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    /* Match score */
+    .match-score {
+        font-size: 3rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    
+    /* Skill tags */
+    .skill-tag {
+        display: inline-block;
+        padding: 4px 12px;
+        margin: 4px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 500;
+    }
+    
+    .skill-match { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+    .skill-gap { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    
+    /* Progress bar */
+    .progress-bar {
+        height: 8px;
         background: #27272a;
-        border-color: #3f3f46;
-        color: #fafafa;
-    }
-    
-    .stAlert {
-        background: #18181b;
-        border: 1px solid #27272a;
-        border-radius: 6px;
-        color: #a1a1aa;
-    }
-    
-    code {
-        background: #18181b;
-        padding: 2px 6px;
         border-radius: 4px;
-        color: #60a5fa;
-        font-size: 13px;
+        overflow: hidden;
     }
     
-    .stat-card {
-        background: #18181b;
-        border: 1px solid #27272a;
-        border-radius: 6px;
-        padding: 16px;
-        margin-bottom: 12px;
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #3b82f6, #6366f1);
+        border-radius: 4px;
+        transition: width 0.3s;
     }
     
-    .stat-label {
-        color: #71717a;
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 4px;
+    /* Metrics */
+    [data-testid="stMetricValue"] {
+        color: #fafafa !important;
     }
     
-    .stat-value {
-        color: #fafafa;
-        font-size: 24px;
-        font-weight: 500;
-    }
-    
-    .topic-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 10px 12px;
-        background: #18181b;
-        border: 1px solid #27272a;
-        border-radius: 6px;
-        margin-bottom: 8px;
-    }
-    
-    .topic-name {
-        color: #fafafa;
-        font-size: 13px;
-        font-weight: 500;
-    }
-    
-    .topic-score {
+    /* Section headers */
+    .section-title {
         color: #71717a;
         font-size: 12px;
-    }
-    
-    .topic-score.low { color: #ef4444; }
-    .topic-score.mid { color: #f59e0b; }
-    .topic-score.high { color: #22c55e; }
-    
-    .section-header {
-        color: #52525b;
-        font-size: 11px;
+        font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 1px;
-        margin: 20px 0 12px 0;
-        font-weight: 600;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
     }
     
-    .brand {
-        color: #fafafa;
-        font-size: 18px;
-        font-weight: 600;
-        letter-spacing: -0.5px;
-        margin-bottom: 4px;
+    /* Alerts - dark subtle style */
+    .stSuccess, .stInfo, .stWarning {
+        background: #18181b !important;
+        border: 1px solid #27272a !important;
+        color: #a1a1aa !important;
     }
     
-    .tagline {
-        color: #52525b;
-        font-size: 13px;
-    }
-    
-    hr {
-        border: none;
-        border-top: 1px solid #27272a;
-        margin: 20px 0;
+    .stSuccess p, .stInfo p, .stWarning p {
+        color: #d4d4d8 !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Header ---
-st.markdown('<p class="brand">MockMentor</p>', unsafe_allow_html=True)
-st.markdown('<p class="tagline">Data Engineering Interview Practice</p>', unsafe_allow_html=True)
-st.markdown("<hr>", unsafe_allow_html=True)
+# --- Session State Initialization ---
+if "page" not in st.session_state:
+    st.session_state.page = "onboarding"
 
-# --- Sidebar ---
-profile = get_profile()
-weak_areas = profile.get("weak_areas", {})
-history = profile.get("history", [])
+if "resume_data" not in st.session_state:
+    st.session_state.resume_data = None
 
+if "jd_data" not in st.session_state:
+    st.session_state.jd_data = None
+
+if "match_result" not in st.session_state:
+    st.session_state.match_result = None
+
+if "interview_plan" not in st.session_state:
+    st.session_state.interview_plan = None
+
+
+def navigate_to(page: str):
+    """Navigate to a different page."""
+    st.session_state.page = page
+    st.rerun()
+
+
+# --- Sidebar Navigation ---
 with st.sidebar:
-    st.markdown('<p class="brand">MockMentor</p>', unsafe_allow_html=True)
+    st.markdown("## MockMentor")
+    st.markdown("*AI Interview Coach*")
+    st.markdown("---")
     
-    # Tabbed navigation
-    tab1, tab2 = st.tabs(["Practice", "Analytics"])
+    # Navigation - no emojis, clean labels
+    pages = {
+        "onboarding": "Setup",
+        "match": "Match Analysis",
+        "interview": "Interview",
+        "report": "Report"
+    }
     
-    # ===== PRACTICE TAB =====
-    with tab1:
-        st.markdown('<p class="section-header">Quick Start</p>', unsafe_allow_html=True)
+    for page_id, page_name in pages.items():
+        if st.button(page_name, key=f"nav_{page_id}", use_container_width=True):
+            navigate_to(page_id)
+    
+    st.markdown("---")
+    
+    # Status indicators
+    if st.session_state.resume_data:
+        st.success("Resume loaded")
+    if st.session_state.jd_data:
+        st.success("JD analyzed")
+    if st.session_state.match_result:
+        score = st.session_state.match_result.get("overall_score", 0)
+        st.info(f"Match: {score:.0f}%")
+
+
+# --- Page Router ---
+page = st.session_state.page
+
+if page == "onboarding":
+    st.markdown("# Welcome to MockMentor")
+    st.markdown("Upload your resume and job description to get started with personalized interview prep.")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### Your Resume")
+        uploaded_file = st.file_uploader(
+            "Upload PDF or DOCX",
+            type=["pdf", "docx", "doc"],
+            key="resume_upload"
+        )
         
-        # Quick action buttons
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Continue", use_container_width=True, help="Resume with optimal question"):
-                st.session_state.practice_mode = "balanced"
-                st.session_state.start_practice = True
+        if uploaded_file:
+            with st.spinner("Parsing resume..."):
+                try:
+                    from mockmentor.resume_parser import parse_resume
+                    
+                    file_bytes = uploaded_file.read()
+                    st.session_state.resume_data = parse_resume(file_bytes, uploaded_file.name)
+                    st.success(f"Parsed: {st.session_state.resume_data.get('name', 'Resume')}")
+                    
+                    skills = st.session_state.resume_data.get("skills", [])[:10]
+                    if skills:
+                        st.markdown("**Skills detected:** " + ", ".join(skills))
+                except Exception as e:
+                    st.error(f"Failed to parse: {e}")
+    
+    with col2:
+        st.markdown("### Job Description")
+        jd_text = st.text_area(
+            "Paste the job description here",
+            height=300,
+            key="jd_input",
+            placeholder="Paste the full job description..."
+        )
+        
+        if jd_text and st.button("Analyze JD", key="analyze_jd"):
+            with st.spinner("Analyzing job description..."):
+                try:
+                    from mockmentor.jd_analyzer import analyze_jd
+                    
+                    st.session_state.jd_data = analyze_jd(jd_text)
+                    st.success(f"Analyzed: {st.session_state.jd_data.get('title', 'Position')}")
+                    
+                    skills = st.session_state.jd_data.get("required_skills", [])[:8]
+                    if skills:
+                        st.markdown("**Required skills:** " + ", ".join(skills))
+                except Exception as e:
+                    st.error(f"Failed to analyze: {e}")
+    
+    st.markdown("---")
+    
+    if st.session_state.resume_data and st.session_state.jd_data:
+        if st.button("Calculate Match Score", type="primary", use_container_width=True):
+            with st.spinner("Calculating match..."):
+                try:
+                    from mockmentor.match_engine import analyze_match
+                    
+                    st.session_state.match_result = analyze_match(
+                        st.session_state.resume_data,
+                        st.session_state.jd_data
+                    )
+                    navigate_to("match")
+                except Exception as e:
+                    st.error(f"Match calculation failed: {e}")
+
+
+elif page == "match":
+    if not st.session_state.match_result:
+        st.warning("Please complete the setup first.")
+        if st.button("← Go to Setup"):
+            navigate_to("onboarding")
+    else:
+        match = st.session_state.match_result
+        
+        st.markdown("# Match Analysis")
+        
+        # Big score display
+        col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            if st.button("Review", use_container_width=True, help="Questions due for review"):
-                st.session_state.practice_mode = "review"
-                st.session_state.start_practice = True
+            score = match.get("overall_score", 0)
+            st.markdown(f'<div style="text-align: center;"><span class="match-score">{score:.0f}%</span></div>', unsafe_allow_html=True)
+            st.markdown(f'<p style="text-align: center; color: #71717a;">{match.get("recommendation", "")}</p>', unsafe_allow_html=True)
         
-        col3, col4 = st.columns(2)
-        with col3:
-            if st.button("Focus", use_container_width=True, help="Target weak areas"):
-                st.session_state.practice_mode = "focus"
-                st.session_state.start_practice = True
-        with col4:
-            if st.button("Explore", use_container_width=True, help="Try new questions"):
-                st.session_state.practice_mode = "explore"
-                st.session_state.start_practice = True
+        st.markdown("---")
         
-        st.markdown('<p class="section-header">Topics</p>', unsafe_allow_html=True)
+        # Skills breakdown
+        col1, col2 = st.columns(2)
         
-        # Topic buttons in a compact grid
-        topics = [
-            ("SQL", "sql"), ("Pipelines", "pipelines"), 
-            ("Modeling", "modeling"), ("System Design", "system_design"),
-            ("Debugging", "debugging"), ("Cloud", "cloud"),
-            ("Python", "python"), ("Data Quality", "data_quality")
-        ]
+        with col1:
+            st.markdown("### Matching Skills")
+            matched = match.get("skill_match", {}).get("matched_required", [])
+            if matched:
+                for skill in matched[:8]:
+                    st.markdown(f'<span class="skill-tag skill-match">{skill}</span>', unsafe_allow_html=True)
+            else:
+                st.info("Upload resume to see matches")
         
-        for i in range(0, len(topics), 2):
-            cols = st.columns(2)
-            for j, col in enumerate(cols):
-                if i + j < len(topics):
-                    name, topic_id = topics[i + j]
-                    with col:
-                        if st.button(name, key=f"topic_{topic_id}", use_container_width=True):
-                            st.session_state.selected_topic = topic_id
-                            st.session_state.start_practice = True
+        with col2:
+            st.markdown("### Skills to Focus")
+            gaps = match.get("skill_match", {}).get("missing_required", [])
+            if gaps:
+                for skill in gaps[:8]:
+                    st.markdown(f'<span class="skill-tag skill-gap">{skill}</span>', unsafe_allow_html=True)
+            else:
+                st.success("No major gaps identified!")
         
-        st.markdown('<p class="section-header">Session</p>', unsafe_allow_html=True)
+        st.markdown("---")
         
-        if st.button("Reset Chat", use_container_width=True):
-            st.session_state.messages = []
-            st.session_state.messages.append({
-                "role": "assistant", 
-                "content": "Session cleared. Select a topic or practice mode to begin."
-            })
-            st.rerun()
-    
-    # ===== ANALYTICS TAB =====
-    with tab2:
-        try:
-            from mockmentor.tools import get_analytics
-            analytics = get_analytics()
+        # Interview focus areas
+        st.markdown("### Interview Focus Areas")
+        focus = match.get("interview_focus_areas", [])
+        if focus:
+            for i, area in enumerate(focus[:5], 1):
+                st.markdown(f"{i}. {area}")
+        
+        st.markdown("---")
+        
+        # Interview options
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("Start Text Interview", type="primary", use_container_width=True):
+                with st.spinner("Generating personalized questions..."):
+                    try:
+                        from mockmentor.question_gen import generate_interview_plan
+                        
+                        st.session_state.interview_plan = generate_interview_plan(
+                            st.session_state.jd_data,
+                            st.session_state.resume_data,
+                            st.session_state.match_result,
+                            num_questions=15
+                        )
+                        navigate_to("interview")
+                    except Exception as e:
+                        st.error(f"Failed to generate questions: {e}")
+        
+        with col2:
+            if st.button("Start Voice Interview", use_container_width=True):
+                with st.spinner("Generating personalized questions..."):
+                    try:
+                        from mockmentor.question_gen import generate_interview_plan
+                        
+                        st.session_state.interview_plan = generate_interview_plan(
+                            st.session_state.jd_data,
+                            st.session_state.resume_data,
+                            st.session_state.match_result,
+                            num_questions=15
+                        )
+                        st.switch_page("pages/voice_interview.py")
+                    except Exception as e:
+                        st.error(f"Failed to generate questions: {e}")
+
+
+elif page == "interview":
+    if not st.session_state.interview_plan:
+        st.warning("Please complete match analysis first.")
+        if st.button("← Go to Match"):
+            navigate_to("match")
+    else:
+        from mockmentor.interview_session import get_session
+        
+        session = get_session()
+        
+        # Initialize interview if needed
+        if not session.interview_plan:
+            session.start_interview(
+                st.session_state.resume_data,
+                st.session_state.jd_data,
+                st.session_state.match_result,
+                st.session_state.interview_plan
+            )
+        
+        # Import persona
+        from mockmentor.persona import (
+            get_interviewer_info, 
+            format_question_conversationally,
+            get_greeting
+        )
+        
+        interviewer = get_interviewer_info()
+        
+        # Header with interviewer info
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            st.markdown(f"<div style='font-size: 3rem; text-align: center;'>{interviewer['avatar']}</div>", unsafe_allow_html=True)
+        with col2:
+            st.markdown(f"**{interviewer['name']}**")
+            st.markdown(f"<span style='color: #71717a; font-size: 0.9rem;'>{interviewer['title']}</span>", unsafe_allow_html=True)
+        
+        # Progress bar
+        progress = session.get_progress()
+        st.markdown(f'''
+            <div style="margin: 1rem 0;">
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {progress['percentage']}%"></div>
+                </div>
+                <p style="color: #71717a; font-size: 0.8rem; margin-top: 0.5rem;">Question {progress['current']} of {progress['total']}</p>
+            </div>
+        ''', unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # Mode toggle
+        col1, col2, _ = st.columns([1, 1, 3])
+        with col1:
+            if st.button("Text Mode", type="secondary" if session.mode != "text" else "primary"):
+                session.mode = "text"
+                st.rerun()
+        with col2:
+            if st.button("Voice Mode", type="secondary" if session.mode != "voice" else "primary"):
+                session.mode = "voice"
+                st.rerun()
+        
+        st.markdown("---")
+        
+        # Current question with conversational framing
+        question = session.get_current_question()
+        
+        if question:
+            # Get previous answer for context
+            prev_answer = session.answers[-1].get("answer") if session.answers else None
             
-            st.markdown('<p class="section-header">Overview</p>', unsafe_allow_html=True)
+            # Format question conversationally
+            conversational_text = format_question_conversationally(
+                question,
+                question_num=session.current_question_idx,
+                total=progress['total'],
+                previous_answer=prev_answer
+            )
+            
+            # Display as interviewer speech
+            st.markdown(f'''
+                <div style="background: #18181b; border: 1px solid #27272a; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem;">
+                    <p style="color: #a1a1aa; font-size: 0.8rem; margin-bottom: 0.5rem;">Topic: {question.get('topic', 'General')}</p>
+                    <p style="color: #fafafa; font-size: 1.1rem; line-height: 1.6;">{conversational_text}</p>
+                </div>
+            ''', unsafe_allow_html=True)
+            
+            # TTS option for voice mode
+            if session.mode == "voice":
+                col1, col2 = st.columns([1, 3])
+                with col1:
+                    if st.button("Play Question"):
+                        try:
+                            from mockmentor.voice_engine import synthesize_speech, get_audio_html
+                            audio = synthesize_speech(conversational_text)
+                            st.markdown(get_audio_html(audio), unsafe_allow_html=True)
+                        except Exception as e:
+                            st.warning(f"TTS not available: {e}")
+            
+            if session.mode == "voice":
+                st.info("Voice mode: Record your answer using the microphone.")
+                try:
+                    from audio_recorder_streamlit import audio_recorder
+                    
+                    audio_bytes = audio_recorder(
+                        pause_threshold=2.0,
+                        sample_rate=16000,
+                        text="Click to record",
+                        icon_size="2x"
+                    )
+                    
+                    if audio_bytes:
+                        with st.spinner("Transcribing..."):
+                            from mockmentor.voice_engine import transcribe_audio_groq, analyze_voice_metrics
+                            
+                            transcription = transcribe_audio_groq(audio_bytes)
+                            st.markdown(f"**Your answer:** {transcription}")
+                            
+                            # Store for processing
+                            st.session_state.current_answer = transcription
+                            st.session_state.current_voice_metrics = analyze_voice_metrics(transcription)
+                
+                except ImportError:
+                    st.warning("Voice recording requires `audio-recorder-streamlit`. Using text mode.")
+                    session.mode = "text"
+                    st.rerun()
+            
+            # Text input (always available)
+            answer = st.text_area(
+                "Your answer:",
+                value=st.session_state.get("current_answer", ""),
+                height=150,
+                key="answer_input"
+            )
             
             col1, col2 = st.columns(2)
+            
             with col1:
-                st.metric("Answered", analytics["total_questions_answered"])
+                if st.button("Submit Answer", type="primary", use_container_width=True):
+                    if answer:
+                        with st.spinner("Evaluating..."):
+                            from mockmentor.tools import evaluate_response
+                            
+                            # Evaluate answer
+                            result = evaluate_response(question.get("id", "custom"), answer)
+                            score = result.get("overall_score", 5)
+                            feedback = result.get("feedback", "Good effort!")
+                            
+                            # Record answer
+                            voice_metrics = st.session_state.get("current_voice_metrics")
+                            session.record_answer(answer, score, feedback, voice_metrics)
+                            
+                            # Show feedback
+                            st.markdown(f"**Score:** {score}/10")
+                            st.markdown(f"**Feedback:** {feedback}")
+                            
+                            # Clear for next
+                            st.session_state.current_answer = ""
+                            st.session_state.current_voice_metrics = None
+                    else:
+                        st.warning("Please provide an answer.")
+            
             with col2:
-                due = analytics["due_for_review"]
-                st.metric("Due for Review", due)
-            
-            st.markdown('<p class="section-header">Topic Mastery</p>', unsafe_allow_html=True)
-            
-            topic_mastery = analytics.get("topic_mastery", {})
-            if topic_mastery:
-                # Sort by mastery percentage
-                sorted_topics = sorted(
-                    topic_mastery.items(), 
-                    key=lambda x: x[1].get("mastery_percentage", 0)
-                )
-                for topic, stats in sorted_topics:
-                    mastery_pct = stats.get("mastery_percentage", 0)
-                    mastered = stats.get("mastered_count", 0)
-                    total = stats.get("total_questions", 0)
-                    
-                    score_class = "low" if mastery_pct < 40 else "mid" if mastery_pct < 70 else "high"
-                    st.markdown(f'''
-                        <div class="topic-row">
-                            <span class="topic-name">{topic.replace("_", " ").title()}</span>
-                            <span class="topic-score {score_class}">{mastered}/{total}</span>
-                        </div>
-                    ''', unsafe_allow_html=True)
-            else:
-                st.markdown('<p style="color: #52525b; font-size: 13px;">No practice data yet</p>', unsafe_allow_html=True)
-            
-            # Recommendations
-            recs = analytics.get("recommendations", {})
-            if recs.get("recommended_mode"):
-                st.markdown('<p class="section-header">Recommendation</p>', unsafe_allow_html=True)
-                mode = recs["recommended_mode"]
-                if mode == "review":
-                    st.info(f"You have {recs['due_count']} questions due for review")
-                elif mode == "focus":
-                    topic = recs.get("suggested_topic", "").replace("_", " ").title()
-                    st.info(f"Focus on: {topic}")
-                else:
-                    st.info("Explore new topics to expand coverage")
-                    
-        except Exception as e:
-            st.markdown('<p style="color: #52525b; font-size: 13px;">Analytics loading...</p>', unsafe_allow_html=True)
+                if st.button("Next Question →", use_container_width=True):
+                    session.advance_question()
+                    st.session_state.current_answer = ""
+                    st.rerun()
+        
+        else:
+            st.success("Interview complete!")
+            if st.button("View Report", type="primary"):
+                navigate_to("report")
 
-# --- Async Helper ---
-async def run_agent_with_session(runner, user_id, session_id, message_content):
-    from google.genai.types import Content, Part
-    
-    app_name = runner.app_name
-    
-    session = None
-    try:
-        session = await runner.session_service.get_session(
-            app_name=app_name,
-            user_id=user_id, 
-            session_id=session_id
-        )
-    except Exception:
-        pass
-    
-    if session is None:
-        session = await runner.session_service.create_session(
-            app_name=app_name,
-            user_id=user_id, 
-            session_id=session_id
-        )
-    
-    msg_obj = Content(role="user", parts=[Part(text=message_content)])
-    
-    response_text = ""
-    async for event in runner.run_async(
-        user_id=user_id,
-        session_id=session_id,
-        new_message=msg_obj
-    ):
-        if hasattr(event, 'is_final_response') and event.is_final_response():
-            if hasattr(event, 'content') and event.content:
-                if hasattr(event.content, 'parts'):
-                    for part in event.content.parts:
-                        if hasattr(part, 'text') and part.text:
-                            response_text += part.text
-        elif hasattr(event, 'text') and event.text:
-            response_text = event.text
-    
-    return response_text
 
-# --- Chat Logic ---
-
-# Initialize messages if not present
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-    st.session_state.messages.append({
-        "role": "assistant", 
-        "content": "Welcome. I will help you prepare for Data Engineering interviews with realistic questions and detailed feedback.\n\nUse the **Practice** tab to:\n- **Continue** — Resume with an optimally-selected question\n- **Review** — Practice questions due for spaced repetition\n- **Focus** — Target your weakest areas\n- **Explore** — Try new questions\n\nOr select a specific topic to dive deep."
-    })
-
-# Handle practice mode button clicks - set pending prompt
-if st.session_state.get("start_practice"):
-    from mockmentor.tools import select_smart_question
+elif page == "report":
+    from mockmentor.interview_session import get_session
     
-    mode = st.session_state.get("practice_mode", "balanced")
-    topic = st.session_state.get("selected_topic")
+    session = get_session()
     
-    # Select question using learning engine
-    question = select_smart_question(mode=mode, topic=topic)
-    
-    if "error" in question:
-        pending = f"I want to practice {topic if topic else 'any topic'}"
+    if not session.answers:
+        st.warning("Complete an interview to see your report.")
+        if st.button("← Start Interview"):
+            navigate_to("interview")
     else:
-        # Format the question for the agent
-        topic_name = question.get("topic", "").replace("_", " ").title()
-        difficulty = question.get("difficulty", "medium").title()
-        pending = f"Give me a {difficulty.lower()} {topic_name} question"
-    
-    # Set pending prompt and clear flags
-    st.session_state.pending_prompt = pending
-    st.session_state.start_practice = False
-    st.session_state.practice_mode = None
-    st.session_state.selected_topic = None
-
-# Display existing messages
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-
-# Get prompt: either from chat input OR from pending button action
-# IMPORTANT: st.chat_input must always be rendered for the input box to appear
-user_input = st.chat_input("Enter your response")
-
-# Check for pending prompt from button click
-pending = st.session_state.get("pending_prompt")
-if pending:
-    st.session_state.pending_prompt = None
-
-# Use pending prompt if available, otherwise use user input
-prompt = pending or user_input
-
-# Process the prompt if we have one
-if prompt:
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    with st.chat_message("assistant"):
-        with st.spinner(""):
-            try:
-                if "runner" not in st.session_state:
-                    from google.adk.runners import InMemoryRunner
-                    st.session_state.runner = InMemoryRunner(
-                        agent=mock_mentor_agent,
-                        app_name="MockMentor"
-                    )
-                
-                runner = st.session_state.runner
-                
-                try:
-                    loop = asyncio.get_event_loop()
-                except RuntimeError:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                
-                response_text = loop.run_until_complete(
-                    run_agent_with_session(runner, "user", "default", prompt)
-                )
-                
-                if response_text:
-                    st.markdown(response_text)
-                    st.session_state.messages.append({"role": "assistant", "content": response_text})
-                else:
-                    st.warning("No response received.")
-                    
-            except Exception as e:
-                error_msg = str(e)
-                if "429" in error_msg or "EXHAUSTED" in error_msg:
-                    st.error("Rate limit exceeded. Please wait and retry.")
-                else:
-                    st.error(f"Error: {e}")
-
+        report = session.generate_final_report()
+        
+        st.markdown("# Interview Report")
+        
+        # Overall score
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Overall Score", f"{report.get('overall_score', 0):.0f}/100")
+        with col2:
+            st.metric("Questions Answered", report.get("questions_answered", 0))
+        with col3:
+            st.metric("Duration", f"{report.get('duration_minutes', 0):.0f} min")
+        
+        st.markdown("---")
+        
+        # Topic breakdown
+        st.markdown("### Topic Performance")
+        for topic, score in report.get("topic_breakdown", {}).items():
+            st.markdown(f"**{topic}:** {score:.1f}/10")
+            st.progress(score / 10)
+        
+        # Voice analysis if available
+        if report.get("voice_analysis"):
+            st.markdown("---")
+            st.markdown("### Voice Analysis")
+            voice = report["voice_analysis"]
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Words Spoken", voice.get("total_words_spoken", 0))
+                st.metric("Fluency Rating", voice.get("fluency_rating", "N/A"))
+            with col2:
+                st.metric("Filler Words", voice.get("total_filler_words", 0))
+                st.metric("Filler Ratio", f"{voice.get('filler_ratio', 0)}%")
+        
+        st.markdown("---")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("New Interview"):
+                from mockmentor.interview_session import reset_session
+                reset_session()
+                st.session_state.interview_plan = None
+                navigate_to("onboarding")
+        with col2:
+            if st.button("Back to Match"):
+                navigate_to("match")
